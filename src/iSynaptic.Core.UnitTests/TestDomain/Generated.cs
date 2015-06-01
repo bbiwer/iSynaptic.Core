@@ -266,7 +266,7 @@ namespace iSynaptic.TestDomain
             [GeneratedCode("iSynaptic.Core", "0.2.0.0")]
             public TimeSpan Duration { get { return _duration; } }
         }
-        public class Snapshot : AggregateSnapshot<ServiceCaseId>
+        public class Snapshot : AggregateSnapshot
         {
             private readonly Int32 _lastThreadId;
             private readonly IEnumerable<CommunicationThreadSnapshot> _threadSnapshots;

@@ -29,15 +29,11 @@ using iSynaptic.Commons.Linq;
 
 namespace iSynaptic.Modeling.Domain
 {
-    internal interface IAggregateInternal<out TIdentifier>
-        where TIdentifier : IEquatable<TIdentifier>
+    internal interface IAggregateInternal
     {
-        void Initialize(IAggregateMemento memento);
-
+        void Initialize(AggregateMemento memento);
         void ApplyEvents(IEnumerable<IAggregateEvent> events);
-
         Boolean ConflictsWith(IEnumerable<IAggregateEvent> committedEvents, IEnumerable<IAggregateEvent> attemptedEvents);
-
         void CommitEvents();
     }
 
@@ -54,7 +50,7 @@ namespace iSynaptic.Modeling.Domain
         internal static Func<FieldInfo, bool> FieldResetImmunityPredicate { get { return _fieldResetImmunityPredicate; }}
     }
 
-    public abstract class Aggregate<TIdentifier> : IAggregate<TIdentifier>, IAggregateInternal<TIdentifier>
+    public abstract class Aggregate<TIdentifier> : IAggregate<TIdentifier>, IAggregateInternal, IAggregate
         where TIdentifier : IEquatable<TIdentifier>
     {
         [ImmuneToReset]
@@ -67,14 +63,14 @@ namespace iSynaptic.Modeling.Domain
         private Action<IAggregate<TIdentifier>, IAggregateEvent<TIdentifier>> _eventDispatcher;
 
         [ImmuneToReset]
-        private Action<IAggregate<TIdentifier>, IAggregateSnapshot<TIdentifier>> _snapshotDispatcher;
+        private Action<IAggregate<TIdentifier>, IAggregateSnapshot> _snapshotDispatcher;
 
         protected Aggregate()
         {
             Initialize(null);
         }
 
-        private void Initialize(IAggregateMemento memento)
+        private void Initialize(AggregateMemento memento)
         {
             _events = new AggregateEventStream<TIdentifier>();
 
@@ -86,24 +82,24 @@ namespace iSynaptic.Modeling.Domain
 
             if (memento != null)
             {
-                var m = memento.ToMemento<TIdentifier>();
+                var m = memento;
 
                 if (m.Snapshot.HasValue)
                     ApplySnapshot(m.Snapshot.Value);
 
-                ApplyEventsCore(m.Events);
+                ApplyEventsCore(m.Events.Cast<IAggregateEvent<TIdentifier>>());
                 _events.CommitEvents();
             }
         }
 
-        void IAggregateInternal<TIdentifier>.Initialize(IAggregateMemento memento)
+        void IAggregateInternal.Initialize(AggregateMemento memento)
         {
-            Initialize(memento.ToMemento<TIdentifier>());
+            Initialize(memento);
         }
 
-        private void ApplySnapshot(IAggregateSnapshot<TIdentifier> snapshot)
+        private void ApplySnapshot(IAggregateSnapshot snapshot)
         {
-            Id = snapshot.Id;
+            Id = (TIdentifier)snapshot.Id;
             Version = snapshot.Version;
 
             DispatchSnapshot(snapshot);
@@ -122,7 +118,7 @@ namespace iSynaptic.Modeling.Domain
             ApplyEventsCore(new[] { @event });
         }
 
-        void IAggregateInternal<TIdentifier>.ApplyEvents(IEnumerable<IAggregateEvent> events)
+        void IAggregateInternal.ApplyEvents(IEnumerable<IAggregateEvent> events)
         {
             ApplyEventsCore(events.Cast<IAggregateEvent<TIdentifier>>());
         }
@@ -152,7 +148,7 @@ namespace iSynaptic.Modeling.Domain
             _eventDispatcher(this, @event);
         }
 
-        protected virtual void DispatchSnapshot(IAggregateSnapshot<TIdentifier> snapshot)
+        protected virtual void DispatchSnapshot(IAggregateSnapshot snapshot)
         {
             if(_snapshotDispatcher == null)
                 _snapshotDispatcher = AggregateHelper.GetSnapshotDispatcher<TIdentifier>(GetType());
@@ -161,7 +157,7 @@ namespace iSynaptic.Modeling.Domain
         }
 
         protected virtual void OnInitialize() { }
-        public virtual IAggregateSnapshot<TIdentifier> TakeSnapshot() { return null; }
+        public virtual IAggregateSnapshot TakeSnapshot() { return null; }
         public IEnumerable<IAggregateEvent<TIdentifier>> GetEvents() { return _events.Events; }
             
         public IEnumerable<IAggregateEvent<TIdentifier>> GetUncommittedEvents()
@@ -169,12 +165,12 @@ namespace iSynaptic.Modeling.Domain
             return _events.UncommittedEvents;
         }
 
-        void IAggregateInternal<TIdentifier>.CommitEvents()
+        void IAggregateInternal.CommitEvents()
         {
             _events.CommitEvents();
         }
 
-        Boolean IAggregateInternal<TIdentifier>.ConflictsWith(IEnumerable<IAggregateEvent> committedEvents,
+        Boolean IAggregateInternal.ConflictsWith(IEnumerable<IAggregateEvent> committedEvents,
                                                               IEnumerable<IAggregateEvent> attemptedEvents)
         {
             return ConflictsWith(committedEvents.Cast<IAggregateEvent<TIdentifier>>(),
@@ -191,8 +187,25 @@ namespace iSynaptic.Modeling.Domain
         }
 
         protected internal virtual Boolean ConflictsWith(IAggregateEvent<TIdentifier> committedEvent, IAggregateEvent<TIdentifier> attemptedEvent) { return true; }
-        
+
         public TIdentifier Id { get; private set; }
         public Int32 Version { get; private set; }
+
+        object IAggregate.Id { get { return Id; } }
+
+        IEnumerable<IAggregateEvent> IAggregate.GetUncommittedEvents()
+        {
+            return GetUncommittedEvents();
+        }
+
+        IEnumerable<IAggregateEvent> IAggregate.GetEvents()
+        {
+            return GetEvents();
+        }
+
+        IAggregateSnapshot IAggregate.TakeSnapshot()
+        {
+            return TakeSnapshot();
+        }
     }
 }

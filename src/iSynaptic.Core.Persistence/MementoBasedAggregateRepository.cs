@@ -31,34 +31,32 @@ using iSynaptic.Modeling.Domain;
 
 namespace iSynaptic.Core.Persistence
 {
-    public abstract class MementoBasedAggregateRepository<TAggregate, TIdentifier> : AggregateRepository<TAggregate, TIdentifier>
-        where TAggregate : class, IAggregate<TIdentifier>
-        where TIdentifier : IEquatable<TIdentifier>
+    public abstract class MementoBasedAggregateRepository : AggregateRepository
     {
-        protected abstract Task<Maybe<AggregateMemento<TIdentifier>>> TryLoadMemento(TIdentifier id);
-        protected abstract Task StoreMemento(Func<Task<KeyValuePair<TIdentifier, AggregateMemento<TIdentifier>>>> mementoFactory);
+        protected abstract Task<Maybe<AggregateMemento>> TryLoadMemento(object id);
+        protected abstract Task StoreMemento(Func<Task<KeyValuePair<object, AggregateMemento>>> mementoFactory);
 
-        protected override async Task<AggregateSnapshotLoadFrame<TIdentifier>> GetSnapshot(TIdentifier id, int maxVersion)
+        protected override async Task<AggregateSnapshotLoadFrame> GetSnapshot(object id, int maxVersion)
         {
             return (await TryLoadMemento(id))
                 .Where(x => x.Snapshot.Select(y => y.Version <= maxVersion).ValueOrDefault())
-                .Select(x => new AggregateSnapshotLoadFrame<TIdentifier>(x.AggregateType, id, x.Snapshot.Value))
+                .Select(x => new AggregateSnapshotLoadFrame(x.AggregateType, id, x.Snapshot.Value))
                 .ValueOrDefault();
         }
 
-        protected override async Task<AggregateEventsLoadFrame<TIdentifier>> GetEvents(TIdentifier id, int minVersion, int maxVersion)
+        protected override async Task<AggregateEventsLoadFrame> GetEvents(object id, int minVersion, int maxVersion)
         {
             return (await TryLoadMemento(id))
-                .Select(x => new AggregateEventsLoadFrame<TIdentifier>(
-                                 x.AggregateType,
-                                 id,
-                                 x.Events
-                                  .SkipWhile(y => y.Version < minVersion)
-                                  .TakeWhile(y => y.Version <= maxVersion)))
+                .Select(x => new AggregateEventsLoadFrame(
+                    x.AggregateType,
+                    id,
+                    x.Events
+                        .SkipWhile(y => y.Version < minVersion)
+                        .TakeWhile(y => y.Version <= maxVersion)))
                 .ValueOrDefault();
         }
 
-        protected override Task SaveSnapshot(AggregateSnapshotSaveFrame<TIdentifier> frame)
+        protected override Task SaveSnapshot(AggregateSnapshotSaveFrame frame)
         {
             return StoreMemento(async () =>
             {
@@ -67,32 +65,32 @@ namespace iSynaptic.Core.Persistence
 
                 var state = (await TryLoadMemento(snapshot.Id)).ValueOrDefault();
 
-                return KeyValuePair.Create(snapshot.Id, new AggregateMemento<TIdentifier>(aggregateType, snapshot.ToMaybe(), state != null ? state.Events : null));
+                return KeyValuePair.Create(snapshot.Id, new AggregateMemento(aggregateType, snapshot.ToMaybe(), state != null ? state.Events : null));
             });
         }
 
-        protected override Task SaveEvents(AggregateEventsSaveFrame<TIdentifier> frame)
+        protected override Task SaveEvents(AggregateEventsSaveFrame frame)
         {
             var aggregateType = frame.AggregateType;
             var id = frame.Id;
             var events = frame.Events.ToArray();
 
-            return StoreMemento(async () => 
+            return StoreMemento(async () =>
                 KeyValuePair.Create(id, (await TryLoadMemento(id))
                     .Select(x =>
                     {
                         var lastEvent = x.Events.TryLast();
                         var actualVersion = lastEvent.Select(y => y.Version).ValueOrDefault();
 
-                        if(actualVersion != frame.ExpectedVersion)
+                        if (actualVersion != frame.ExpectedVersion)
                             throw new AggregateConcurrencyException();
 
-                        return new AggregateMemento<TIdentifier>(
+                        return new AggregateMemento(
                             aggregateType,
                             x.Snapshot,
                             x.Events.Concat(events.SkipWhile(y => y.Version <= lastEvent.Select(z => z.Version).ValueOrDefault())));
                     })
-                    .ValueOrDefault(() => new AggregateMemento<TIdentifier>(aggregateType, Maybe<IAggregateSnapshot<TIdentifier>>.NoValue, events))));
+                    .ValueOrDefault(() => new AggregateMemento(aggregateType, Maybe<IAggregateSnapshot>.NoValue, events))));
         }
     }
 }

@@ -26,15 +26,14 @@ using iSynaptic.Commons;
 
 namespace iSynaptic.Modeling.Domain
 {
-    public class AggregateEventsLoadFrame<TIdentifier> : AggregateLoadFrame<TIdentifier>
-        where TIdentifier : IEquatable<TIdentifier>
+    public class AggregateEventsLoadFrame : AggregateLoadFrame
     {
-        public AggregateEventsLoadFrame(Type aggregateType, TIdentifier id, IEnumerable<IAggregateEvent<TIdentifier>> events)
+        public AggregateEventsLoadFrame(Type aggregateType, object id, IEnumerable<IAggregateEvent> events)
             : base(aggregateType, id)
         {
             Events = Guard.NotNull(events, "events");
         }
 
-        public IEnumerable<IAggregateEvent<TIdentifier>> Events { get; private set; }
+        public IEnumerable<IAggregateEvent> Events { get; private set; }
     }
 }

@@ -25,10 +25,9 @@ using System;
 namespace iSynaptic.Modeling.Domain
 {
     [Serializable]
-    public abstract class AggregateSnapshot<TIdentifier> : IAggregateSnapshot<TIdentifier>
-        where TIdentifier : IEquatable<TIdentifier>
+    public abstract class AggregateSnapshot : IAggregateSnapshot
     {
-        protected AggregateSnapshot(TIdentifier id, Int32 version, DateTime takenAt)
+        protected AggregateSnapshot(object id, Int32 version, DateTime takenAt)
         {
             if (version <= 0)
                 throw new ArgumentOutOfRangeException("version", "Version must be greater than 0.");
@@ -43,7 +42,7 @@ namespace iSynaptic.Modeling.Domain
         }
 
         public Guid SnapshotId { get; private set; }
-        public TIdentifier Id { get; private set; }
+        public object Id { get; private set; }
         public Int32 Version { get; private set; }
         public DateTime TakenAt { get; private set; }
     }

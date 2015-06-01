@@ -3,14 +3,22 @@ using System.Collections.Generic;
 
 namespace iSynaptic.Modeling.Domain
 {
-    public interface IAggregate<out TIdentifier> 
+    public interface IAggregate
+    {
+        object Id { get; }
+        int Version { get; }
+
+        IEnumerable<IAggregateEvent> GetUncommittedEvents();
+        IEnumerable<IAggregateEvent> GetEvents();
+        
+        IAggregateSnapshot TakeSnapshot();
+    }
+
+    public interface IAggregate<out TIdentifier> : IAggregate 
         where TIdentifier : IEquatable<TIdentifier>
     {
-        TIdentifier Id { get; }
-        Int32 Version { get; }
+        new TIdentifier Id { get; }
 
-        IEnumerable<IAggregateEvent<TIdentifier>> GetUncommittedEvents();
-
-        IAggregateSnapshot<TIdentifier> TakeSnapshot();
+        new IEnumerable<IAggregateEvent<TIdentifier>> GetUncommittedEvents();
     }
 }

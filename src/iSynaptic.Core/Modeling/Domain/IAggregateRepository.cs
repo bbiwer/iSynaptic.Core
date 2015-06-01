@@ -21,11 +21,20 @@
 // THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using iSynaptic.Commons.Threading.Tasks;
 
 namespace iSynaptic.Modeling.Domain
 {
+    public interface IAggregateRepository
+    {
+        Task<IAggregate> Get(Type aggregateType, object id, int maxVersion = int.MaxValue);
+        Task Save(IAggregate aggregate);
+        Task SaveSnapshot(IAggregate aggregate);
+        Task SaveEvents(Type aggregateType, object id, IEnumerable<IAggregateEvent> events);
+    }
+
     public interface IAggregateRepository<TAggregate, in TIdentifier> : IAggregateRepositoryCommands<TAggregate, TIdentifier>, IAggregateRepositoryQueries<TAggregate, TIdentifier>
         where TAggregate : IAggregate<TIdentifier> 
         where TIdentifier : IEquatable<TIdentifier>

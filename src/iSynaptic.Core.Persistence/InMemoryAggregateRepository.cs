@@ -27,18 +27,14 @@ using System.Threading.Tasks;
 using iSynaptic.Commons;
 using iSynaptic.Commons.Collections.Generic;
 using iSynaptic.Modeling.Domain;
-using iSynaptic.Serialization;
 
 namespace iSynaptic.Core.Persistence
 {
-    public class InMemoryAggregateRepository<TAggregate, TIdentifier> : MementoBasedAggregateRepository<TAggregate, TIdentifier>
-        where TAggregate : class, IAggregate<TIdentifier>
-        where TIdentifier : IEquatable<TIdentifier>
+    public class InMemoryAggregateRepository : MementoBasedAggregateRepository
     {
-        private readonly Dictionary<TIdentifier, AggregateMemento<TIdentifier>> _state =
-            new Dictionary<TIdentifier, AggregateMemento<TIdentifier>>();
+        private readonly Dictionary<object, AggregateMemento> _state = new Dictionary<object, AggregateMemento>();
 
-        protected override Task<Maybe<AggregateMemento<TIdentifier>>> TryLoadMemento(TIdentifier id)
+        protected override Task<Maybe<AggregateMemento>> TryLoadMemento(object id)
         {
             lock (_state)
             {
@@ -46,23 +42,33 @@ namespace iSynaptic.Core.Persistence
             }
         }
 
-        protected override async Task StoreMemento(Func<Task<KeyValuePair<TIdentifier, AggregateMemento<TIdentifier>>>> mementoFactory)
+        protected override async Task StoreMemento(Func<Task<KeyValuePair<object, AggregateMemento>>> mementoFactory)
         {
             bool lockTaken = false;
-            
+
             try
             {
                 Monitor.Enter(_state, ref lockTaken);
 
                 var memento = await mementoFactory();
                 _state[memento.Key] = memento.Value;
-                
+
             }
             finally
             {
-                if(lockTaken)
+                if (lockTaken)
                     Monitor.Exit(_state);
             }
+        }
+    }
+
+    public class InMemoryAggregateRepository<TAggregate, TIdentifier> : AggregateRepository<TAggregate, TIdentifier>
+        where TAggregate : class, IAggregate<TIdentifier>
+        where TIdentifier : IEquatable<TIdentifier>
+    {
+        public InMemoryAggregateRepository()
+            : base(new InMemoryAggregateRepository())
+        {
         }
     }
 }

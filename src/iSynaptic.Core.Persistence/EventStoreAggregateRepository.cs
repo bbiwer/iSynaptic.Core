@@ -21,34 +21,26 @@
 // THE SOFTWARE.
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
 using EventStore.ClientAPI;
 using EventStore.ClientAPI.Exceptions;
-using Newtonsoft.Json;
 using iSynaptic.Commons;
-using iSynaptic.Commons.Collections.Generic;
 using iSynaptic.Commons.Linq;
-using iSynaptic.Modeling;
 using iSynaptic.Modeling.Domain;
 using iSynaptic.Serialization;
+using Newtonsoft.Json;
 
 namespace iSynaptic.Core.Persistence
 {
-    public class EventStoreAggregateRepository<TAggregate, TIdentifier> : AggregateRepository<TAggregate, TIdentifier>
-        where TAggregate : class, IAggregate<TIdentifier>
-        where TIdentifier : IEquatable<TIdentifier>
+    public class EventStoreAggregateRepository : AggregateRepository
     {
         private static readonly Guid _offsetEventId = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
         private static readonly EventData _offsetEvent = new EventData(_offsetEventId, "streamOffset", true, Encoding.Default.GetBytes("{}"), null);
 
         private readonly ILogicalTypeRegistry _logicalTypeRegistry;
-
         private readonly JsonSerializer _dataSerializer;
-
         private readonly Func<IEventStoreConnection> _connectionFactory;
 
         public EventStoreAggregateRepository(ILogicalTypeRegistry logicalTypeRegistry, Func<IEventStoreConnection> connectionFactory)
@@ -59,7 +51,7 @@ namespace iSynaptic.Core.Persistence
             _dataSerializer = JsonSerializerBuilder.Build(logicalTypeRegistry);
         }
 
-        protected override async Task<AggregateEventsLoadFrame<TIdentifier>> GetEvents(TIdentifier id, int minVersion, int maxVersion)
+        protected override async Task<AggregateEventsLoadFrame> GetEvents(object id, int minVersion, int maxVersion)
         {
             var maxCount = (maxVersion - minVersion) + 1;
 
@@ -96,16 +88,16 @@ namespace iSynaptic.Core.Persistence
                     var events = resolvedEvents
                         .Select(x => x.Event.Data)
                         .Select(Encoding.Default.GetString)
-                        .Select(x => _dataSerializer.Deserialize<IAggregateEvent<TIdentifier>>(x));
+                        .Select(x => _dataSerializer.Deserialize<IAggregateEvent>(x));
 
-                    return new AggregateEventsLoadFrame<TIdentifier>(aggregateType, id, events);
+                    return new AggregateEventsLoadFrame(aggregateType, id, events);
                 }
 
                 return null;
             }
         }
 
-        protected async override Task SaveEvents(AggregateEventsSaveFrame<TIdentifier> frame)
+        protected async override Task SaveEvents(AggregateEventsSaveFrame frame)
         {
             var aggregateType = frame.AggregateType;
             var id = frame.Id;
@@ -150,7 +142,7 @@ namespace iSynaptic.Core.Persistence
             }
         }
 
-        protected override async Task<AggregateSnapshotLoadFrame<TIdentifier>> GetSnapshot(TIdentifier id, int maxVersion)
+        protected override async Task<AggregateSnapshotLoadFrame> GetSnapshot(object id, int maxVersion)
         {
             using (var cn = _connectionFactory())
             {
@@ -168,7 +160,7 @@ namespace iSynaptic.Core.Persistence
                 {
                     throw new InvalidOperationException("Aggregate type is not specified in event stream metadata.");
                 }
-                
+
                 var resolvedEvent = (await cn.ReadStreamEventsForwardAsync(snapshotStreamId, 0, int.MaxValue, false).ConfigureAwait(false))
                     .ToMaybe()
                     .Where(x => x.Status == SliceReadStatus.Success)
@@ -178,21 +170,21 @@ namespace iSynaptic.Core.Persistence
                 var snapshot = resolvedEvent
                     .Select(x => x.Event.Data)
                     .Select(Encoding.Default.GetString)
-                    .Select(x => _dataSerializer.Deserialize<IAggregateSnapshot<TIdentifier>>(x))
+                    .Select(x => _dataSerializer.Deserialize<IAggregateSnapshot>(x))
                     .Where(x => x.Version <= maxVersion);
 
                 if (snapshot.HasValue)
                 {
                     Type aggregateType = _logicalTypeRegistry.LookupActualType(LogicalType.Parse(aggregateTypeString));
 
-                    return new AggregateSnapshotLoadFrame<TIdentifier>(aggregateType, id, snapshot.Value);
+                    return new AggregateSnapshotLoadFrame(aggregateType, id, snapshot.Value);
                 }
 
                 return null;
             }
         }
 
-        protected async override Task SaveSnapshot(AggregateSnapshotSaveFrame<TIdentifier> frame)
+        protected async override Task SaveSnapshot(AggregateSnapshotSaveFrame frame)
         {
             using (var cn = _connectionFactory())
             {
@@ -229,7 +221,7 @@ namespace iSynaptic.Core.Persistence
                             snapshot.SnapshotId,
                             snapshot,
                             aggregateType)
-                    ).ConfigureAwait(false);    
+                    ).ConfigureAwait(false);
                 }
             }
         }
@@ -258,14 +250,24 @@ namespace iSynaptic.Core.Persistence
                 null);
         }
 
-        protected virtual String BuildStreamIdentifier(TIdentifier id)
+        protected virtual String BuildStreamIdentifier(object id)
         {
             return _dataSerializer.Serialize(id);
         }
 
-        protected virtual String BuildSnapshotStreamIdentifier(TIdentifier id)
+        protected virtual String BuildSnapshotStreamIdentifier(object id)
         {
             return String.Format("{0}-snapshot", BuildStreamIdentifier(id));
+        }
+    }
+
+    public class EventStoreAggregateRepository<TAggregate, TIdentifier> : AggregateRepository<TAggregate, TIdentifier>
+        where TAggregate : class, IAggregate<TIdentifier>
+        where TIdentifier : IEquatable<TIdentifier>
+    {
+        public EventStoreAggregateRepository(ILogicalTypeRegistry logicalTypeRegistry, Func<IEventStoreConnection> connectionFactory)
+            :base(new EventStoreAggregateRepository(logicalTypeRegistry, connectionFactory))
+        {
         }
     }
 }

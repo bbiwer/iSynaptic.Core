@@ -25,15 +25,14 @@ using iSynaptic.Commons;
 
 namespace iSynaptic.Modeling.Domain
 {
-    public class AggregateSnapshotSaveFrame<TIdentifier> : AggregateSaveFrame<TIdentifier>
-        where TIdentifier : IEquatable<TIdentifier>
+    public class AggregateSnapshotSaveFrame : AggregateSaveFrame
     {
-        public AggregateSnapshotSaveFrame(Type aggregateType, TIdentifier id, Boolean isNew, IAggregateSnapshot<TIdentifier> snapshot)
+        public AggregateSnapshotSaveFrame(Type aggregateType, object id, Boolean isNew, IAggregateSnapshot snapshot)
             : base(aggregateType, id, isNew)
         {
             Snapshot = Guard.NotNull(snapshot, "snapshot");
         }
 
-        public IAggregateSnapshot<TIdentifier> Snapshot { get; private set; }
+        public IAggregateSnapshot Snapshot { get; private set; }
     }
 }

@@ -26,11 +26,10 @@ using iSynaptic.Commons;
 
 namespace iSynaptic.Modeling.Domain
 {
-    public class AggregateEventsSaveFrame<TIdentifier> : AggregateSaveFrame<TIdentifier>
-        where TIdentifier : IEquatable<TIdentifier>
+    public class AggregateEventsSaveFrame : AggregateSaveFrame
     {
-        public AggregateEventsSaveFrame(Type aggregateType, TIdentifier id, Boolean isNew, Int32 expectedVersion, Int32 newVersion, IEnumerable<IAggregateEvent<TIdentifier>> events)
-            : base (aggregateType, id, isNew)
+        public AggregateEventsSaveFrame(Type aggregateType, object id, Boolean isNew, Int32 expectedVersion, Int32 newVersion, IEnumerable<IAggregateEvent> events)
+            : base(aggregateType, id, isNew)
         {
             ExpectedVersion = expectedVersion;
             NewVersion = newVersion;
@@ -39,6 +38,6 @@ namespace iSynaptic.Modeling.Domain
 
         public Int32 ExpectedVersion { get; private set; }
         public Int32 NewVersion { get; private set; }
-        public IEnumerable<IAggregateEvent<TIdentifier>> Events { get; private set; }
+        public IEnumerable<IAggregateEvent> Events { get; private set; }
     }
 }

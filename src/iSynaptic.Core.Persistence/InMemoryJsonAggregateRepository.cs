@@ -27,18 +27,14 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using iSynaptic.Commons;
 using iSynaptic.Commons.Collections.Generic;
-using iSynaptic.Modeling;
 using iSynaptic.Modeling.Domain;
 using iSynaptic.Serialization;
 
 namespace iSynaptic.Core.Persistence
 {
-    public class InMemoryJsonAggregateRepository<TAggregate, TIdentifier> : MementoBasedAggregateRepository<TAggregate, TIdentifier>
-        where TAggregate : class, IAggregate<TIdentifier>
-        where TIdentifier : IEquatable<TIdentifier>
+    public class InMemoryJsonAggregateRepository : MementoBasedAggregateRepository
     {
-        private readonly Dictionary<String, String> _state =
-            new Dictionary<String, String>();
+        private readonly Dictionary<String, String> _state = new Dictionary<String, String>();
 
         private readonly JsonSerializer _serializer;
 
@@ -47,27 +43,37 @@ namespace iSynaptic.Core.Persistence
             _serializer = Guard.NotNull(serializer, "serializer");
         }
 
-        protected override Task<Maybe<AggregateMemento<TIdentifier>>> TryLoadMemento(TIdentifier id)
+        protected override Task<Maybe<AggregateMemento>> TryLoadMemento(object id)
         {
             return Task.FromResult(_state.TryGetValue(_serializer.Serialize(id))
-                       .Select(json => _serializer.Deserialize<AggregateMemento<TIdentifier>>(json)));
+                       .Select(json => _serializer.Deserialize<AggregateMemento>(json)));
         }
 
-        protected override async Task StoreMemento(Func<Task<KeyValuePair<TIdentifier, AggregateMemento<TIdentifier>>>> mementoFactory)
+        protected override async Task StoreMemento(Func<Task<KeyValuePair<object, AggregateMemento>>> mementoFactory)
         {
             bool lockTaken = false;
             try
             {
                 Monitor.Enter(_state, ref lockTaken);
-                
+
                 var memento = await mementoFactory();
                 _state[_serializer.Serialize(memento.Key)] = _serializer.Serialize(memento.Value);
             }
             finally
             {
-                if(lockTaken)
+                if (lockTaken)
                     Monitor.Exit(_state);
             }
+        }
+    }
+
+    public class InMemoryJsonAggregateRepository<TAggregate, TIdentifier> : AggregateRepository<TAggregate, TIdentifier>
+        where TAggregate : class, IAggregate<TIdentifier>
+        where TIdentifier : IEquatable<TIdentifier>
+    {
+        public InMemoryJsonAggregateRepository(JsonSerializer serializer)
+            : base(new InMemoryJsonAggregateRepository(serializer))
+        {
         }
     }
 }

@@ -20,12 +20,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-using System;
-using System.Threading.Tasks;
-using NUnit.Framework;
 using iSynaptic.Core.Persistence;
 using iSynaptic.Modeling.Domain;
 using iSynaptic.TestDomain;
+using NUnit.Framework;
 
 namespace iSynaptic.Persistence
 {
@@ -36,6 +34,26 @@ namespace iSynaptic.Persistence
         private const string ConnectionString = "Data Source=(local);Initial Catalog=AggregateStore;Integrated Security=true;";
 
         public SqlServerAggregateRepositoryTests()
+        {
+            var ltr = LogicalTypeRegistryBuilder.Build();
+
+            Repo = new SqlServerAggregateRepository(ltr, ConnectionString);
+        }
+
+        [TestFixtureSetUp]
+        public void FixtureSetup()
+        {
+            SqlServerAggregateRepository.EnsureTablesExist(ConnectionString).Wait();
+        }
+    }
+
+    [TestFixture]
+    [Explicit("Integration tests - requires Sql Server to be running locally.")]
+    public class SqlServerGenericAggregateRepositoryTests : GenericAggregateRepositoryTests
+    {
+        private const string ConnectionString = "Data Source=(local);Initial Catalog=AggregateStore;Integrated Security=true;";
+
+        public SqlServerGenericAggregateRepositoryTests()
         {
             var ltr = LogicalTypeRegistryBuilder.Build();
 

@@ -36,7 +36,7 @@ using iSynaptic.Serialization;
 
 namespace iSynaptic.Core.Persistence
 {
-    public static class SqlServerAggregateRepository
+    public class SqlServerAggregateRepository : AggregateRepository
     {
         private static readonly Regex _scriptRegex = new Regex(@"(?<script>.+?)(\r\nGO(\r\n|$))", 
             RegexOptions.ExplicitCapture | RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Singleline);
@@ -68,12 +68,7 @@ namespace iSynaptic.Core.Persistence
                 }
             }
         }
-    }
 
-    public class SqlServerAggregateRepository<TAggregate, TIdentifier> : AggregateRepository<TAggregate, TIdentifier>
-        where TAggregate : class, IAggregate<TIdentifier> 
-        where TIdentifier : IEquatable<TIdentifier>
-    {
         #region Helper Classes
 
         private abstract class DbRow
@@ -91,8 +86,8 @@ namespace iSynaptic.Core.Persistence
 
             private string ValidateAggregateId(string value, string argumentName)
             {
-                if(value == null) throw new ArgumentNullException(argumentName);
-                if(value.Length > 200) throw new ArgumentException("Aggregate ID must be 200 characters or less.", argumentName);
+                if (value == null) throw new ArgumentNullException(argumentName);
+                if (value.Length > 200) throw new ArgumentException("Aggregate ID must be 200 characters or less.", argumentName);
 
                 return value;
             }
@@ -122,8 +117,8 @@ namespace iSynaptic.Core.Persistence
             {
                 get { return _version; }
                 set { _version = ValidateVersion(value, "value"); }
-            }  
-          
+            }
+
             public string Type
             {
                 get { return _type; }
@@ -143,8 +138,8 @@ namespace iSynaptic.Core.Persistence
 
             private string ValidateData(string data, string argumentName)
             {
-                if(data == null) throw new ArgumentNullException(argumentName);
-                if(string.IsNullOrWhiteSpace(data)) throw new ArgumentException("Data cannot be only whitespace.", argumentName);
+                if (data == null) throw new ArgumentNullException(argumentName);
+                if (string.IsNullOrWhiteSpace(data)) throw new ArgumentException("Data cannot be only whitespace.", argumentName);
 
                 return data;
             }
@@ -158,7 +153,7 @@ namespace iSynaptic.Core.Persistence
 
         private class DbAggregate : DbRow
         {
-            public DbAggregate(string aggregateId, int version, string type) 
+            public DbAggregate(string aggregateId, int version, string type)
                 : base(aggregateId, version, type)
             {
             }
@@ -174,7 +169,7 @@ namespace iSynaptic.Core.Persistence
 
         private class DbAggregateSnapshot : DbDataRow
         {
-            public DbAggregateSnapshot(string aggregateId, int version, string type, string data) 
+            public DbAggregateSnapshot(string aggregateId, int version, string type, string data)
                 : base(aggregateId, version, type, data)
             {
             }
@@ -195,7 +190,7 @@ namespace iSynaptic.Core.Persistence
             _connectionString = Guard.NotNullOrWhiteSpace(connectionString, "connectionString");
         }
 
-        protected override async Task<AggregateSnapshotLoadFrame<TIdentifier>> GetSnapshot(TIdentifier id, int maxVersion)
+        protected override async Task<AggregateSnapshotLoadFrame> GetSnapshot(object id, int maxVersion)
         {
             string idString = ConvertIdentifierToString(id);
 
@@ -229,8 +224,8 @@ namespace iSynaptic.Core.Persistence
                         {
                             string data = reader.GetString(reader.GetOrdinal("Data"));
 
-                            var snapshot = _dataSerializer.Deserialize<IAggregateSnapshot<TIdentifier>>(data);
-                            return new AggregateSnapshotLoadFrame<TIdentifier>(aggregateType, id, snapshot);
+                            var snapshot = _dataSerializer.Deserialize<IAggregateSnapshot>(data);
+                            return new AggregateSnapshotLoadFrame(aggregateType, id, snapshot);
                         }
                     }
                 }
@@ -239,10 +234,10 @@ namespace iSynaptic.Core.Persistence
             }
         }
 
-        protected override async Task<AggregateEventsLoadFrame<TIdentifier>> GetEvents(TIdentifier id, int minVersion, int maxVersion)
+        protected override async Task<AggregateEventsLoadFrame> GetEvents(object id, int minVersion, int maxVersion)
         {
             string idString = ConvertIdentifierToString(id);
-            
+
             using (var connection = new SqlConnection(_connectionString))
             {
                 await connection.OpenAsync();
@@ -256,11 +251,11 @@ namespace iSynaptic.Core.Persistence
                         LogicalType.Parse(dbAggregate.Type));
 
                     var events = dbEvents
-                        .Select(x => _dataSerializer.Deserialize<IAggregateEvent<TIdentifier>>(x))
+                        .Select(x => _dataSerializer.Deserialize<IAggregateEvent>(x))
                         .ToArray();
 
-                    return events.Length > 0 
-                        ? new AggregateEventsLoadFrame<TIdentifier>(aggregateType, id, events) 
+                    return events.Length > 0
+                        ? new AggregateEventsLoadFrame(aggregateType, id, events)
                         : null;
                 }
 
@@ -268,7 +263,7 @@ namespace iSynaptic.Core.Persistence
             }
         }
 
-        protected override async Task SaveSnapshot(AggregateSnapshotSaveFrame<TIdentifier> frame)
+        protected override async Task SaveSnapshot(AggregateSnapshotSaveFrame frame)
         {
             string idString = ConvertIdentifierToString(frame.Id);
             string type = _logicalTypeRegistry.LookupLogicalType(frame.Snapshot.GetType()).ToString();
@@ -313,7 +308,7 @@ namespace iSynaptic.Core.Persistence
             }
         }
 
-        protected override async Task SaveEvents(AggregateEventsSaveFrame<TIdentifier> frame)
+        protected override async Task SaveEvents(AggregateEventsSaveFrame frame)
         {
             string idString = ConvertIdentifierToString(frame.Id);
             string type = _logicalTypeRegistry.LookupLogicalType(frame.AggregateType).ToString();
@@ -364,8 +359,7 @@ namespace iSynaptic.Core.Persistence
             }
         }
 
-        private static async Task InsertAggregate(SqlConnection connection, SqlTransaction transaction, string idString,
-                                                  int newVersion, string type)
+        private static async Task InsertAggregate(SqlConnection connection, SqlTransaction transaction, string idString, int newVersion, string type)
         {
             var insertCommand = new SqlCommand
             {
@@ -385,7 +379,7 @@ namespace iSynaptic.Core.Persistence
                 throw new AggregateConcurrencyException();
         }
 
-        private async Task InsertEvents(IEnumerable<IAggregateEvent<TIdentifier>> events, string idString, SqlConnection connection, SqlTransaction transaction)
+        private async Task InsertEvents(IEnumerable<IAggregateEvent> events, string idString, SqlConnection connection, SqlTransaction transaction)
         {
             var dbEvents = events.Select(x => new DbAggregateEvent(idString,
                                                                    x.Version,
@@ -474,10 +468,20 @@ namespace iSynaptic.Core.Persistence
             return results.ToArray();
         }
 
-        protected virtual string ConvertIdentifierToString(TIdentifier id)
+        protected virtual string ConvertIdentifierToString(object id)
         {
             Guard.NotNull(id, "id");
             return _dataSerializer.Serialize(id);
+        }
+    }
+
+    public class SqlServerAggregateRepository<TAggregate, TIdentifier> : AggregateRepository<TAggregate, TIdentifier>
+        where TAggregate : class, IAggregate<TIdentifier>
+        where TIdentifier : IEquatable<TIdentifier>
+    {
+        public SqlServerAggregateRepository(ILogicalTypeRegistry logicalTypeRegistry, string connectionString)
+            :base(new SqlServerAggregateRepository(logicalTypeRegistry, connectionString))
+        {
         }
     }
 }
